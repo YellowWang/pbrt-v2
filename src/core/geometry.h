@@ -39,6 +39,155 @@
 // core/geometry.h*
 #include "pbrt.h"
 
+#define Yellow_SSE
+#ifdef Yellow_SSE
+
+// Geometry Declarations
+class Vector {
+public:
+	// Vector Public Methods
+	Vector() { x = y = z = pad = 0.f; }
+	Vector(float xx, float yy, float zz)
+		: x(xx), y(yy), z(zz), pad(0) {
+		Assert(!HasNaNs());
+	}
+	bool HasNaNs() const { return isnan(x) || isnan(y) || isnan(z); }
+	explicit Vector(const Point &p);
+#ifndef NDEBUG
+	// The default versions of these are fine for release builds; for debug
+	// we define them so that we can add the Assert checks.
+	Vector(const Vector &v) {
+		Assert(!v.HasNaNs());
+		x = v.x; y = v.y; z = v.z;
+	}
+
+	Vector &operator=(const Vector &v) {
+		Assert(!v.HasNaNs());
+		x = v.x; y = v.y; z = v.z;
+		return *this;
+	}
+#endif // !NDEBUG
+	Vector operator+(const Vector &v) const {
+		Assert(!v.HasNaNs());
+		__m128 a = _mm_loadu_ps(&x);
+		__m128 b = _mm_loadu_ps(&v.x);
+		__m128 sum = _mm_add_ps(a, b);
+
+		Vector result;
+		_mm_storeu_ps(&result.x, sum);
+		return result;
+	}
+
+	Vector& operator+=(const Vector &v) {
+		Assert(!v.HasNaNs());
+		__m128 a = _mm_loadu_ps(&x);
+		__m128 b = _mm_loadu_ps(&v.x);
+		__m128 sum = _mm_add_ps(a, b);
+
+		_mm_storeu_ps(&x, sum);
+		return *this;
+	}
+	Vector operator-(const Vector &v) const {
+		Assert(!v.HasNaNs());
+		__m128 a = _mm_loadu_ps(&x);
+		__m128 b = _mm_loadu_ps(&v.x);
+		__m128 c = _mm_sub_ps(a, b);
+
+		Vector result;
+		_mm_storeu_ps(&result.x, c);
+		return result;
+	}
+
+	Vector& operator-=(const Vector &v) {
+		Assert(!v.HasNaNs());
+		__m128 a = _mm_loadu_ps(&x);
+		__m128 b = _mm_loadu_ps(&v.x);
+		__m128 c = _mm_sub_ps(a, b);
+
+		_mm_storeu_ps(&x, c);
+		return *this;
+	}
+	Vector operator*(float f) const { 
+		__m128 a = _mm_loadu_ps(&x);
+		float v[4] = { f, f, f, 1 };
+		__m128 b = _mm_loadu_ps(v);
+		__m128 c = _mm_mul_ps(a, b);
+
+		Vector result;
+		_mm_storeu_ps(&result.x, c);
+		return result; 
+	}
+
+	Vector &operator*=(float f) {
+		Assert(!isnan(f));
+		__m128 a = _mm_loadu_ps(&x);
+		float v[4] = { f, f, f, 1 };
+		__m128 b = _mm_loadu_ps(v);
+		__m128 c = _mm_mul_ps(a, b);
+
+		_mm_storeu_ps(&x, c);
+		return *this;
+	}
+	Vector operator/(float f) const {
+		Assert(f != 0);
+		float inv = 1.f / f;
+		__m128 a = _mm_loadu_ps(&x);
+		float v[4] = { inv, inv, inv, 1 };
+		__m128 b = _mm_loadu_ps(v);
+		__m128 c = _mm_mul_ps(a, b);
+
+		Vector result;
+		_mm_storeu_ps(&result.x, c);
+		return result;
+	}
+
+	Vector &operator/=(float f) {
+		Assert(f != 0);
+		float inv = 1.f / f;
+		__m128 a = _mm_loadu_ps(&x);
+		float v[4] = { inv, inv, inv, 1 };
+		__m128 b = _mm_loadu_ps(v);
+		__m128 c = _mm_mul_ps(a, b);
+
+		_mm_storeu_ps(&x, c);
+		return *this;
+	}
+	Vector operator-() const { 
+		return (*this)*-1;
+	}
+	float operator[](int i) const {
+		Assert(i >= 0 && i <= 2);
+		return (&x)[i];
+	}
+
+	float &operator[](int i) {
+		Assert(i >= 0 && i <= 2);
+		return (&x)[i];
+	}
+	float LengthSquared() const { 
+		__m128 a = _mm_loadu_ps(&x);
+		float v[4] = { x, y, z, 1 };
+		__m128 b = _mm_loadu_ps(v);
+		__m128 c = _mm_mul_ps(a, b);
+
+		_mm_storeu_ps(v, c);
+		return v[0]+v[1]+v[2]; 
+	}
+	float Length() const { return sqrtf(LengthSquared()); }
+	explicit Vector(const Normal &n);
+
+	bool operator==(const Vector &v) const {
+		return x == v.x && y == v.y && z == v.z;
+	}
+	bool operator!=(const Vector &v) const {
+		return x != v.x || y != v.y || z != v.z;
+	}
+
+	// Vector Public Data
+	float x, y, z, pad;
+};
+
+#else
 // Geometry Declarations
 class Vector {
 public:
@@ -127,7 +276,7 @@ public:
     // Vector Public Data
     float x, y, z;
 };
-
+#endif
 
 class Point {
 public:
